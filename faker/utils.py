@@ -60,6 +60,7 @@ def stacked_from_function(param_grid,
                           apply_func=None,
                           apply_func_kws=None,
                           col_names=None,
+                          make_cats=None,
                           **kws):
     """
     Generate some data using a function which accepts some parameters and
@@ -75,15 +76,18 @@ def stacked_from_function(param_grid,
         apply_func_kws: arguments to pass to apply_func
 
         col_names: column names for the resulting dataframe
+
+        make_cats: list, optional
+            These columns will be turned into pandas categories
     """
 
     param_grid = sklearn.model_selection.ParameterGrid(param_grid)
 
     apply_func_kws = apply_func_kws or dict()
     col_names = col_names or list()
+    make_cats = make_cats or list()
 
     dfs = list()
-    categoricals = list()
 
     for params in param_grid:
 
@@ -106,14 +110,12 @@ def stacked_from_function(param_grid,
         # as we will use these for facetting when we plot the data
         for k, v in params.items():
             df[k] = v
-            categoricals.append(k)
 
         dfs.append(df)
 
     dfm = pd.concat(dfs)
-    categoricals = list(set(categoricals))
 
-    for cat in categoricals:
+    for cat in make_cats:
         dfm[cat] = dfm[cat].astype('category')
 
     return dfm
