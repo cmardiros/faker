@@ -5,48 +5,75 @@ import scipy
 from sklearn.model_selection import ParameterGrid
 
 
-def logistic(X, betas, alphas=None, noise=None):
+def linear(x, betas, alphas=None, noise=None):
+    """
+    Simulate data from a linear regression model with one variable.
+    """
+
+    # add the intercept values to x
+    # effectively shifts our entire x array by the value of alpha
+    # creates an array with 2 rows, each row of length x.shape[0]
+    if alphas is not None:
+        x = np.vstack([x, alphas])
+
+    # alpha = intercept
+    # beta = slope
+    # y = a + b * x
+    true_Y = x.T.dot(betas)
+
+    if noise is not None:
+        Y = true_Y + noise
+    else:
+        Y = true_Y
+
+    return Y
+
+
+def logistic(x, betas, alphas=None, noise=None):
     """
     Simulate data from a logistic regression model with one variable.
 
     Parameters:
     -----------
-        X: 1-d array, required
-            Values for our X predictor variable
+        x: 1-d array, required
+            Values for our x predictor variable
 
         betas: iterable of 2 values, required
             Shape parameter/slope
-            betas[0] = coeff values for X predictor variable
+            betas[0] = coeff values for x predictor variable
             betas[1] = coeff values for intercept (alpha)
             Typically if intercept is introduced into the model beta[1] = 1
 
-        alphas: 1-d array of length X.shape[0], optional
-            Intercept/bias values for X (shift parameter)
-            Typically this is a constant value across all values of X
-            e.g. np.full(shape=X.shape, fill_value=1)
+        alphas: 1-d array of length x.shape[0], optional
+            Intercept/bias values for x (shift parameter)
+            Typically this is a constant value across all values of x
+            e.g. np.full(shape=x.shape, fill_value=1)
 
-        noise: 1-d array of length X.shape[0], optional
-            Noise value to add to each value of X
-            e.g. stats.norm.rvs(loc=0, scale=1, size=X.shape[0])
+        noise: 1-d array of length x.shape[0], optional
+            Noise value to add to each value of x
+            e.g. stats.norm.rvs(loc=0, scale=1, size=x.shape[0])
 
     """
 
-    # add the intercept values to X
-    # effectively shifts our entire X array by the value of alpha
-    # creates an array with 2 rows, each row of length X.shape[0]
+    # add the intercept values to x
+    # effectively shifts our entire x array by the value of alpha
+    # creates an array with 2 rows, each row of length x.shape[0]
     if alphas is not None:
-        X = np.vstack([X, alphas])
+        x = np.vstack([x, alphas])
 
-    # compute predicted log-odds for every value of X
+    # compute predicted log-odds for every value of x
     # logodds = coeff * x + intercept
     # x1*beta_x + intercept1*beta_intercept
     # + x2*beta_x + intercept2*beta_intercept ...
-    logodds = X.T.dot(betas)
+    # this is the linear relationship component
+    true_logodds = x.T.dot(betas)
 
     # add noise if exists
     # TODO: why is noise added to logodds?
     if noise is not None:
-        logodds = logodds + noise
+        logodds = true_logodds + noise
+    else:
+        logodds = true_logodds
 
     # convert log-odds to odds (aka odds ratio)
     # -- v important for interpretation
@@ -74,9 +101,9 @@ def logistic_grid(grid):
     Example:
     shape_grid = {
 
-        # list of (X, intercept=1)
-        'X_alphas': [
-            (X, np.full(shape=X.shape, fill_value=1)),
+        # list of (x, intercept=1)
+        'x_alphas': [
+            (x, np.full(shape=x.shape, fill_value=1)),
         ],
 
         # beta_x and beta_intercept
@@ -85,7 +112,7 @@ def logistic_grid(grid):
         ],
 
         'noise': [
-            stats.norm.rvs(loc=0, scale=1, size=X.shape[0])
+            stats.norm.rvs(loc=0, scale=1, size=x.shape[0])
         ]
     }
     """
@@ -96,22 +123,22 @@ def logistic_grid(grid):
 
     for ix, params in enumerate(grid):
 
-        # first element is X
-        X = params['X_alphas'][0]
+        # first element is x
+        x = params['x_alphas'][0]
 
         # second element is associated intercept array
-        alphas = params['X_alphas'][1]
+        alphas = params['x_alphas'][1]
 
         betas = params['betas']
 
         noise = params.get('noise')
 
-        y_prob = logistic(X=X,
+        y_prob = logistic(x=x,
                           betas=betas,
                           alphas=alphas,
                           noise=noise)
 
-        df = pd.DataFrame(np.vstack([X, alphas]).T, columns=['x', 'intercept'])
+        df = pd.DataFrame(np.vstack([x, alphas]).T, columns=['x', 'intercept'])
         df['beta_x'] = betas[0]
         df['beta_intercept'] = betas[1]
         df['noise'] = noise
@@ -132,6 +159,69 @@ def logistic_grid(grid):
 
         # discretized
         df['y_discrete'] = (df['y_prob'] > 0.5) * 1
+
+        # indices
+        df['param_ix'] = ix + 1
+
+        dfs.append(df)
+
+    dfm = pd.concat(dfs)
+
+    return dfm
+
+
+def linear_grid(grid):
+    """
+    Pass a grid of parameters to simulate linear regression data from
+    and union all resulting dataframes.
+
+    Example:
+    shape_grid = {
+
+        # list of (x, intercept=1)
+        'x_alphas': [
+            (x, np.full(shape=x.shape, fill_value=1)),
+        ],
+
+        # beta_x and beta_intercept
+        'betas': [
+            (1, 1)
+        ],
+
+        'noise': [
+            stats.norm.rvs(loc=0, scale=1, size=x.shape[0])
+        ]
+    }
+    """
+
+    grid = sklearn.model_selection.ParameterGrid(grid)
+
+    dfs = list()
+
+    for ix, params in enumerate(grid):
+
+        # first element is x
+        x = params['x_alphas'][0]
+
+        # second element is associated intercept array
+        alphas = params['x_alphas'][1]
+
+        betas = params['betas']
+
+        noise = params.get('noise')
+
+        y_pred = linear(x=x,
+                        betas=betas,
+                        alphas=alphas,
+                        noise=noise)
+
+        df = pd.DataFrame(np.vstack([x, alphas]).T, columns=['x', 'intercept'])
+        df['beta_x'] = betas[0]
+        df['beta_intercept'] = betas[1]
+        df['noise'] = noise
+
+        df['y_pred'] = y_pred
+        df['true_y_pred'] = df['y_pred'] - df['noise']
 
         # indices
         df['param_ix'] = ix + 1
