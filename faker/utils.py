@@ -94,7 +94,7 @@ def stacked_from_function(param_grid,
         data = from_function(func_kws=copy.deepcopy(params), **kws)
 
         if apply_func:
-            data = apply_func(data, axis=1, **apply_func_kws)
+            data = apply_func(data, **apply_func_kws)
 
         df = pd.DataFrame(data)
 
